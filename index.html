@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinOps Cost Saving Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  --font-heading : 'Exo', sans-serif;
+  --font-body    : 'Roboto', sans-serif;
+
+  --text-xs   : 8pt;
+  --text-sm   : 8pt;
+  --text-base : 10pt;
+  --text-lg   : 14pt;
+  --text-xl   : 20pt;
+  --text-2xl  : 44pt;
+  --text-kpi  : 44pt;
+
+  --c-page        : #ffffff;
+  --c-surface     : #F9F9FD;
+  --c-border      : #E7E7EF;
+  --c-text        : #0F141A;
+  --c-text-soft   : #8F8FA3;
+  --c-accent-1    : #54CCDC;
+  --c-accent-2    : #014D8C; 
+  --c-dark        : #E7E7EF;
+  --c-positive    : #0F141A;
+  --c-total       : #0F141A;
+  --c-table-alt   : #F9F9FD;
+  --c-table-total : #eef2fb;
+
+  --page-w        : 210mm;
+  --pad-h         : 44px;
+  --gap-section   : 50px; 
+  --gap-inner     : 16px;
+
+  --radius-card   : 8px;
+  --radius-table  : 8px;
+}
+
+/* ============================================================
+   BASE RESET & RESPONSIVE
+   ============================================================ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  color: var(--c-text);
+  background: var(--c-page);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.page {
+  max-width: var(--page-w);
+  width: 100%;
+  margin: 0 auto;
+  min-height: 297mm;
+  background: var(--c-page);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   HEADER & HERO
+   ============================================================ */
+.header {
+  padding: 20px var(--pad-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.header-logo img { height: 28px; display: block; max-width: 100%; }
+.header-label { font-size: var(--text-lg); color: var(--c-text-soft); font-family: var(--font-heading) }
+
+.hero {
+  padding: 40px var(--pad-h);
+  background: var(--c-page);
+  border-bottom: 1px solid var(--c-border);
+  position: relative;
+}
+.hero-client { font-family: var(--font-heading); font-size: var(--text-2xl); font-weight: 600; line-height: 1.2; margin-bottom: 6px; letter-spacing: 0px; word-break: break-word; }
+.hero-meta { font-size: var(--text-base); color: var(--c-text); }
+
+/* ============================================================
+   SCORECARD
+   ============================================================ */
+.scorecard-wrap { padding: var(--gap-section) var(--pad-h) 0; }
+.scorecard { display: flex; gap: var(--gap-inner); flex-wrap: wrap; }
+.scorecard-card {
+  flex: 1 1 calc(50% - var(--gap-inner));
+  min-width: 250px;
+  background: var(--c-surface);
+  border-radius: var(--radius-card);
+  padding: 30px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--c-dark);
+}
+.scorecard-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 10px; }
+.scorecard-card.monthly::before { background: var(--c-accent-1); }
+.scorecard-card.annual::before  { background: var(--c-accent-2); }
+.card-label { font-size: var(--text-base); font-weight: 700; text-transform: capitalize; color: var(--c-text); margin-bottom: 20px; }
+.card-amount { font-family: var(--font-heading); font-size: var(--text-kpi); font-weight: 100; line-height: 1; margin-bottom: 6px; word-break: break-all; }
+.card-desc { font-size: var(--text-base); color: var(--c-text-soft); }
+
+/* ============================================================
+   SECTION
+   ============================================================ */
+.section { padding: var(--gap-section) var(--pad-h) 0; }
+.section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.section-title { font-family: var(--font-heading); font-size: var(--text-lg); font-weight: 700; white-space: nowrap; }
+.section-rule { flex: 1; height: 1px; background: var(--c-border); }
+.section-intro { color: var(--c-text-soft); line-height: 1.65; }
+
+/* ============================================================
+   CHART + TABLE ROW
+   ============================================================ */
+.chart-table-row {
+  display: flex;
+  gap: var(--gap-inner);
+  align-items: stretch; /* Kritik kural: İçeriklerin yüksekliklerini eşitler */
+  flex-wrap: wrap;
+  padding: var(--gap-section) var(--pad-h) 0;
+}
+
+.chart-box {
+  flex: 0 0 200px;
+  background: var(--c-surface);
+  border-radius: var(--radius-card);
+  padding: 20px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: auto; /* Stretch olması için auto bırakılır */
+}
+.chart-box-title {
+  font-family: var(--font-body); font-size: var(--text-base); font-weight: 700;
+  text-transform: capitalize; color: var(--c-text); margin-bottom: 16px;
+  width: 100%; text-align: center;
+}
+.pie-svg-container { position: relative; width: 150px; height: 150px; margin-bottom: 20px; }
+.pie-svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.legend { display: flex; flex-direction: column; gap: 12px; width: 100%; margin-top: auto; }
+.legend-item { display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-sm); line-height: 1.2; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 2px; }
+.legend-name { flex: 1; font-weight: 400; color: var(--c-text); font-size: var(--text-base); }
+.legend-pct  { font-weight: 600; color: var(--c-text); font-size: var(--text-base); }
+
+.table-box { 
+  flex: 1; 
+  min-width: 300px;
+  display: flex; 
+  flex-direction: column; 
+}
+
+/* ============================================================
+   TABLE
+   ============================================================ */
+.report-table {
+  width: 100%; 
+  height: 100%; /* Tablonun dış kapsayıcıya göre tam uzamasını sağlar */
+  border-collapse: collapse; 
+  border-radius: var(--radius-table); 
+  overflow: hidden;
+}
+.report-table thead tr { background: var(--c-surface); }
+.report-table thead th {
+  padding: 20px; font-size: var(--text-base); font-weight: 900;
+  color: var(--c-text); text-align: left; border-bottom: 1px solid var(--c-dark);
+}
+.report-table thead th.r { text-align: right; }
+.report-table tbody tr { background: var(--c-table-alt); border-bottom: 1px solid var(--c-border); }
+.report-table tbody tr.total-row { background: var(--c-dark); border-top: 1px solid var(--c-dark); border-bottom: none; }
+.report-table td { padding: 20px; vertical-align: top; line-height: 1.5; border-bottom: 1px solid var(--c-dark); }
+.report-table tr:last-child td { border-bottom: none; }
+.report-table td.r { text-align: right; white-space: nowrap; }
+.cell-title { font-size: var(--text-base); font-weight: 900; color: var(--c-text); margin-bottom: 4px; }
+.cell-desc { font-size: var(--text-base); color: var(--c-text); }
+.cell-value { font-family: var(--font-heading); font-size: var(--text-lg); font-weight: 500; color: var(--c-positive); }
+.total-row .cell-title { font-family: var(--font-body); font-weight: 900; text-transform: capitalize; color: var(--c-total); font-size: var(--text-base);}
+.total-row .cell-value { color: var(--c-total); font-weight: 900; }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.footer {
+  margin-top: auto; padding: 18px var(--pad-h); border-top: 1px solid var(--c-border);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+}
+.footer-meta { font-size: var(--text-sm); color: var(--c-text-soft); }
+.footer-meta strong { font-weight: 500; color: var(--c-text); }
+.footer-brand { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); color: var(--c-text-soft); }
+.footer-brand img { height: 16px; opacity: 0.6; }
+
+/* ============================================================
+   MOBILE RESPONSIVE QUERIES (SADECE EKRAN İÇİN)
+   ============================================================ */
+@media screen and (max-width: 768px) {
+  :root {
+    --pad-h: 20px;
+    --gap-section: 30px;
+    --text-2xl: 32pt;
+    --text-kpi: 32pt;
+  }
+  
+  .header { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .chart-box { flex: 1 1 100%; }
+  
+  .legend-pct {
+    font-family: var(--font-heading);
+    font-size: var(--text-lg);
+    font-weight: 900;
+  }
+  
+  .report-table thead { display: none; }
+  .report-table, .report-table tbody, .report-table tr, .report-table td { display: block; width: 100%; }
+  .report-table tr { margin-bottom: 16px; border: 1px solid var(--c-border); border-radius: var(--radius-card); background: var(--c-surface); }
+  .report-table td { text-align: right; padding-left: 50%; position: relative; border-bottom: 1px solid var(--c-dark); }
+  .report-table td:last-child { border-bottom: none; }
+  .report-table td.r { text-align: right; white-space: normal; }
+  
+  .report-table td::before {
+    content: attr(data-label); position: absolute; left: 20px; top: 20px; width: 45%;
+    text-align: left; font-weight: 900; color: var(--c-text); font-size: var(--text-base);
+  }
+  
+  .report-table td > div { text-align: right; }
+  .cell-desc { text-align: right; }
+
+  .report-table tr.total-row { border: none; background: transparent; }
+  .report-table tr.total-row td { padding-left: 20px; text-align: right; border-bottom: 1px solid var(--c-border); background: var(--c-dark); }
+  .report-table tr.total-row td:first-child { display: none; }
+  .report-table tr.total-row td::before { left: 20px; width: 50%; color: var(--c-total); }
+}
+
+@media screen and (max-width: 480px) {
+  .scorecard-card { min-width: 100%; }
+}
+
+/* ============================================================
+   PRINT STYLES (A4 FIT & ALIGNMENT)
+   ============================================================ */
+@media print { 
+  @page { 
+    size: A4 portrait; 
+    margin: 0; 
+  }
+
+  :root {
+    /* Daraltmayı iptal edip dengeli boşluklar bıraktık */
+    --gap-section: 35px;
+    --pad-h: 44px;
+  }
+  
+  html, body { 
+    width: 210mm !important; 
+    height: auto !important; /* Wix iframe kesilmelerini önler */
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important; 
+    box-sizing: border-box;
+  } 
+  
+  .page { 
+    width: 210mm !important; 
+    min-height: 297mm !important; 
+    max-width: 210mm !important; 
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important; 
+    display: flex !important; 
+    flex-direction: column !important;
+    box-sizing: border-box;
+  }
+
+  .chart-table-row {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    align-items: stretch !important; /* Yükseklik eşitlemesini yazıcıda da korur */
+  }
+
+  .chart-box {
+    flex: 0 0 200px !important;
+    height: auto !important; /* Tablo ile beraber uzaması için auto */
+  }
+  
+  .table-box {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  
+  .report-table {
+    height: 100% !important; /* Tablonun kapsayıcı ile uzamasını sağlar */
+  }
+
+  .report-table thead { display: table-header-group !important; }
+  .report-table, .report-table tbody, .report-table tr { display: table !important; width: 100% !important; }
+  /* Paddingler normale döndürüldü (sıkışıklık giderildi) */
+  .report-table td, .report-table th { display: table-cell !important; text-align: left !important; padding: 20px !important; }
+  .report-table td::before { content: none !important; }
+  .report-table tr { margin-bottom: 0 !important; border: none !important; }
+  .report-table td > div { text-align: left !important; }
+  .report-table td.r, .report-table th.r { text-align: right !important; }
+  .report-table tr.total-row td:first-child { display: table-cell !important; }
+  
+  .legend-pct {
+    font-family: var(--font-body) !important;
+    font-size: var(--text-base) !important;
+    font-weight: 600 !important;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="page" id="report-container">
+</div>
+
+<script>
+/** * ============================================================
+ * DIŞARIDAN BESLENECEK VERİ OBJESİ (DATA MODEL)
+ * ============================================================
+ */
+const reportData = {
+  document: {
+    logoUrl: "https://www.kloia.com/hubfs/kloia-horizontal-logo-multicolor.svg",
+    reportType: "FinOps Cost Saving Report"
+  },
+  hero: {
+    clientName: "Trugo",
+    period: "April 2026",
+    preparedBy: "FinOps Lead"
+  },
+  scorecard: {
+    monthlyDesc: "Realised cost reduction in April 2026",
+    annualDesc: "Projected full-year benefit at current run rate"
+  },
+  section: {
+    title: "Savings Breakdown",
+    intro: "Cost saving actions completed in April 2026, with monthly impact and projected annual benefit."
+  },
+  operations: [
+    {
+      title: "Idle Resource Shutdown",
+      description: "Identified and terminated unused EC2 instances, EBS volumes, and Elastic IPs.",
+      monthly: 2000,
+      annual: 30000,
+      color: "#54cbe0" 
+    },
+    {
+      title: "Graviton Migration",
+      description: "Migrated eligible workloads from x86 to AWS Graviton (ARM) instance types.",
+      monthly: 2000,
+      annual: 22000,
+      color: "#FFE147"
+    }
+  ],
+  footer: {
+    reportDate: "June 03, 2026"
+  }
+};
+
+/** * ============================================================
+ * RENDER MOTORU VE MATEMATİKSEL HESAPLAMALAR
+ * ============================================================
+ */
+
+const formatCurrency = (val) => {
+  if (val >= 1000) return '$' + (val / 1000) + 'k';
+  return '$' + val;
+};
+
+function renderReport(data) {
+  const container = document.getElementById('report-container');
+
+  let totalMonthly = 0;
+  let totalAnnual = 0;
+  data.operations.forEach(op => {
+    totalMonthly += op.monthly;
+    totalAnnual += op.annual;
+  });
+
+  let tableRowsHTML = '';
+  data.operations.forEach(op => {
+    tableRowsHTML += `
+      <tr>
+        <td data-label="Operation"><div class="cell-title">${op.title}</div></td>
+        <td data-label="Action Taken"><div class="cell-desc">${op.description}</div></td>
+        <td class="r" data-label="Monthly"><span class="cell-value">${formatCurrency(op.monthly)}</span></td>
+        <td class="r" data-label="Annually"><span class="cell-value">${formatCurrency(op.annual)}</span></td>
+      </tr>
+    `;
+  });
+
+  let svgCirclesHTML = '';
+  let legendHTML = '';
+  let cumulativePercent = 0;
+
+  data.operations.forEach(op => {
+    const percent = totalAnnual > 0 ? (op.annual / totalAnnual) * 100 : 0;
+    const dashArray = `${percent} ${100 - percent}`;
+    const dashOffset = 100 - cumulativePercent;
+    
+    svgCirclesHTML += `
+      <circle 
+        cx="21" cy="21" r="15.91549430918954" 
+        fill="transparent" 
+        stroke="${op.color}" 
+        stroke-width="6" 
+        stroke-dasharray="${dashArray}" 
+        stroke-dashoffset="${dashOffset}">
+      </circle>
+    `;
+    cumulativePercent += percent;
+
+    legendHTML += `
+      <div class="legend-item">
+        <div class="legend-dot" style="background:${op.color};"></div>
+        <span class="legend-name">${op.title}</span>
+        <span class="legend-pct">${Math.round(percent)}%</span>
+      </div>
+    `;
+  });
+
+  const htmlTemplate = `
+    <header class="header">
+      <div class="header-logo"><img src="${data.document.logoUrl}" alt="Logo"></div>
+      <div class="header-label">${data.document.reportType}</div>
+    </header>
+
+    <div class="hero">
+      <div class="hero-client">${data.hero.clientName}</div>
+      <div class="hero-meta">${data.hero.period}</div>
+    </div>
+
+    <div class="scorecard-wrap">
+      <div class="scorecard">
+        <div class="scorecard-card monthly">
+          <div class="card-label">Total Monthly Savings</div>
+          <div class="card-amount">${formatCurrency(totalMonthly)}</div>
+          <div class="card-desc">${data.scorecard.monthlyDesc}</div>
+        </div>
+        <div class="scorecard-card annual">
+          <div class="card-label">Total Annual Savings</div>
+          <div class="card-amount">${formatCurrency(totalAnnual)}</div>
+          <div class="card-desc">${data.scorecard.annualDesc}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">${data.section.title}</span>
+        <div class="section-rule"></div>
+      </div>
+      <p class="section-intro">${data.section.intro}</p>
+    </div>
+
+    <div class="chart-table-row">
+      <div class="chart-box">
+        <div class="chart-box-title">Annual Share</div>
+        
+        <div class="pie-svg-container">
+          <svg class="pie-svg" viewBox="0 0 42 42">
+            <circle cx="21" cy="21" r="15.91549430918954" fill="transparent" stroke="#e8eaf0" stroke-width="6"></circle>
+            ${svgCirclesHTML}
+          </svg>
+        </div>
+
+        <div class="legend">
+          ${legendHTML}
+        </div>
+      </div>
+
+      <div class="table-box">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th style="width:25%">Operation</th>
+              <th style="width:55%">Action Taken</th>
+              <th class="r" style="width:10%">Monthly</th>
+              <th class="r" style="width:10%">Annually</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRowsHTML}
+            <tr class="total-row">
+              <td colspan="2"><div class="cell-title">Total</div></td>
+              <td class="r" data-label="Total Monthly"><span class="cell-value">${formatCurrency(totalMonthly)}</span></td>
+              <td class="r" data-label="Total Annually"><span class="cell-value">${formatCurrency(totalAnnual)}</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-meta">
+        Report Date: <strong>${data.footer.reportDate}</strong>
+        &nbsp;&middot;&nbsp;
+        Prepared by: <strong>${data.hero.preparedBy}</strong>
+      </div>
+      <div class="footer-brand">
+        Prepared by &nbsp;<img src="${data.document.logoUrl}" alt="Logo">
+      </div>
+    </footer>
+  `;
+
+  container.innerHTML = htmlTemplate;
+}
+
+renderReport(reportData);
+</script>
+</body>
+</html>
