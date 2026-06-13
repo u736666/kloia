@@ -110,7 +110,30 @@ html, body {
 .scorecard-card.monthly::before { background: var(--c-accent-1); }
 .scorecard-card.annual::before  { background: var(--c-accent-2); }
 .card-label { font-size: var(--text-base); font-weight: 700; text-transform: capitalize; color: var(--c-text); margin-bottom: 20px; }
-.card-amount { font-family: var(--font-heading); font-size: var(--text-kpi); font-weight: 100; line-height: 1; margin-bottom: 6px; word-break: break-all; }
+/* Update for Card Amounts */
+.card-amount { 
+  font-family: var(--font-heading); 
+  font-size: var(--text-kpi); 
+  font-weight: 700; /* Bolder weight */
+  line-height: 1; 
+  margin-bottom: 6px; 
+  word-break: break-all; 
+}
+
+/* New helper class for thin dollar signs */
+.currency-thin {
+  font-weight: 300;
+  font-size: 0.7em; /* Smaller and thinner */
+  margin-right: 2px;
+}
+
+/* Update for Table Cell Values */
+.cell-value { 
+  font-family: var(--font-heading); 
+  font-size: var(--text-lg); 
+  font-weight: 700; /* Bolder weight */
+  color: var(--c-positive); 
+}
 .card-desc { font-size: var(--text-base); color: var(--c-text-soft); }
 
 /* ============================================================
@@ -264,7 +287,7 @@ html, body {
   
   html, body { 
     width: 210mm !important; 
-    height: auto !important; /* Wix iframe kesilmelerini önler */
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: visible !important; 
@@ -375,9 +398,10 @@ const reportData = {
  * ============================================================
  */
 
+
 const formatCurrency = (val) => {
-  if (val >= 1000) return '$' + (val / 1000) + 'k';
-  return '$' + val;
+  let formatted = (val >= 1000) ? (val / 1000) + 'k' : val;
+  return `<span class="currency-thin">$</span>${formatted}`;
 };
 
 function renderReport(data) {
@@ -520,6 +544,7 @@ function renderReport(data) {
 }
 
 renderReport(reportData);
+
 </script>
 </body>
 </html>
