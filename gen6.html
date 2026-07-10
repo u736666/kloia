@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PARTICLE_ARCHITECT_v25</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root { --ui-bg: #ffffff; --ui-text: #000000; --ui-border: #000000; --canvas-bg: #000000; }
+        * { box-sizing: border-box; border-radius: 0 !important; outline: none; text-transform: uppercase; font-family: 'Noto Sans', sans-serif; font-weight: 700; }
+        
+        body { margin: 0; overflow: hidden; background: var(--canvas-bg); display: flex; color: var(--ui-text); font-size: 12px; }
+
+        #sidebar { 
+            width: 320px; height: 100vh; background: var(--ui-bg); 
+            border-right: 1px solid var(--ui-border); padding: 20px; 
+            overflow-y: auto; z-index: 100; display: flex; flex-direction: column;
+        }
+
+        .group { margin-bottom: 22px; }
+        label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+        label span { font-family: monospace; color: #888; font-weight: 400; }
+        
+        /* 1px HUD Sliders */
+        input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; cursor: pointer; height: 24px; }
+        input[type=range]::-webkit-slider-runnable-track { height: 1px; background: #000; }
+        input[type=range]::-webkit-slider-thumb { 
+            -webkit-appearance: none; height: 18px; width: 12px; 
+            background: #000; border: 1px solid #fff; margin-top: -9px; 
+        }
+
+        /* Color Squares */
+        .c-sq { position: relative; width: 32px; height: 32px; border: 1px solid #000; overflow: hidden; background: #000; }
+        .c-sq input { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; z-index: 5; }
+        
+        .palette { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0; }
+        .p-node { position: relative; aspect-ratio: 1; border: 1px solid #000; }
+        .p-node input { position: absolute; opacity: 0; width: 100%; height: 100%; cursor: pointer; z-index: 5; }
+        .p-node .del { 
+            position: absolute; top: -5px; right: -5px; background: #000; color: #fff; 
+            border: none; font-size: 8px; width: 15px; height: 15px; cursor: pointer; 
+            z-index: 10; display: none; line-height: 15px; text-align: center;
+        }
+        .p-node:hover .del { display: block; }
+
+        /* Shape Icons - Perfectly Centered */
+        .shape-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
+        .btn-sh { 
+            font-size: 20px; height: 45px; padding: 0; display: flex; align-items: center; justify-content: center;
+            background: #fff; border: 1px solid #000; cursor: pointer; opacity: 0.3; transition: 0.1s;
+        }
+        .btn-sh.active { background: #000; color: #fff; opacity: 1; }
+
+        /* Row Layouts */
+        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .row-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+        
+        button.ui-btn { background: #fff; border: 1px solid #000; color: #000; padding: 10px 2px; cursor: pointer; font-size: 11px; width: 100%; transition: 0.1s; display: flex; align-items: center; justify-content: center; }
+        button.ui-btn:hover { background: #000; color: #fff; }
+        button.ui-btn.active { background: #000; color: #fff; }
+        button.black { background: #000; color: #fff; border: none; }
+
+        /* Center Arrow Square */
+        .arrow-sq { width: 35px; height: 35px; border: 1px solid #000; background: #000; color: #fff; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+        .w-inputs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+        .w-inputs input { width: 100%; border: 1px solid #000; padding: 8px; text-align: center; font-size: 12px; }
+        
+        textarea { width: 100%; border: 1px solid #000; padding: 10px; font-size: 10px; margin-top: 10px; min-height: 50px; resize: none; text-transform: none; font-weight: 400; }
+
+        #viewport { flex-grow: 1; position: relative; background: #000; }
+        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+        .overlay { position: absolute; bottom: 15px; right: 20px; color: rgba(255,255,255,0.2); font-size: 11px; pointer-events: none; text-align: right; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="row-2 group">
+        <button class="ui-btn black" style="height:40px" onclick="generateReset()">Generate</button>
+        <button class="ui-btn" onclick="undo()">Undo (<span id="uCount">0</span>)</button>
+    </div>
+
+    <div class="group">
+        <label>Clumping <span id="v-clump">50%</span></label>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <input type="range" id="clump" min="1" max="100" value="50">
+            <div class="arrow-sq" onclick="updateStructure()">→</div>
+        </div>
+    </div>
+
+    <div class="group">
+        <label>Rotation Y <span id="v-rotY">0</span></label><input type="range" id="rotY" min="-180" max="180" value="0">
+        <label>Rotation X <span id="v-rotX">0</span></label><input type="range" id="rotX" min="-180" max="180" value="0">
+        <label>Zoom <span id="v-zoom">0%</span></label><input type="range" id="zoom" min="-800" max="800" value="0">
+    </div>
+
+    <div class="group">
+        <label>Visibility <span id="v-depth">100%</span></label>
+        <input type="range" id="depth" min="0" max="100" value="100">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px">
+            <label style="margin:0">Background</label>
+            <div class="c-sq" id="bgP"><input type="color" id="bgColor" value="#000000" oninput="updateBg(this.value)"></div>
+        </div>
+    </div>
+
+    <div class="group">
+        <label><input type="checkbox" id="showLines" checked onchange="render()" style="width:16px; height:16px;"> Connectors</label>
+        <div class="w-inputs">
+            <input type="number" step="0.1" value="1.5" id="lwF" oninput="cfg.lw.f=+this.value;render()">
+            <input type="number" step="0.1" value="0.6" id="lwM" oninput="cfg.lw.m=+this.value;render()">
+            <input type="number" step="0.1" value="0.1" id="lwB" oninput="cfg.lw.b=+this.value;render()">
+        </div>
+        <label style="margin-top:15px">Radius <span id="v-lineDist">60</span></label><input type="range" id="lineDist" min="10" max="250" value="60">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:10px">
+            <label style="margin:0">Line Color</label>
+            <div class="c-sq" id="lnP" style="background:#fff"><input type="color" id="lineColor" value="#ffffff" oninput="updateLineColor(this.value)"></div>
+        </div>
+    </div>
+
+    <div class="group">
+        <div class="shape-grid">
+            <button class="btn-sh active" id="s1" onclick="toggleShape('circleFill')">●</button>
+            <button class="btn-sh" id="s2" onclick="toggleShape('circleStroke')">○</button>
+            <button class="btn-sh" id="s3" onclick="toggleShape('squareFill')">■</button>
+            <button class="btn-sh" id="s4" onclick="toggleShape('squareStroke')">□</button>
+            <button class="btn-sh" id="sSVG" style="font-size:10px" onclick="toggleShape('svg')">SVG</button>
+        </div>
+        <textarea id="svgInput" placeholder="Paste SVG Code or URL" onchange="loadSVG(this.value)"></textarea>
+    </div>
+
+    <div class="group">
+        <div class="row-4">
+            <button class="ui-btn active" id="modeSpray" onclick="setMode('spray')">Spray</button>
+            <button class="ui-btn" id="modeVortex" onclick="setMode('vortex')">Vortx</button>
+            <button class="ui-btn" id="modePush" onclick="setMode('push')">Push</button>
+            <button class="ui-btn" id="modeErase" onclick="setMode('erase')">Erase</button>
+        </div>
+    </div>
+
+    <div class="group">
+        <div id="palette" class="palette"></div>
+        <button class="ui-btn" style="margin-top:8px" onclick="addColor()">+ Add Color</button>
+    </div>
+
+    <div class="row-2" style="margin-top:auto">
+        <button class="ui-btn black" onclick="export4K()">4K PNG</button>
+        <button class="ui-btn" style="border-color:#ccc; color:#aaa;" onclick="clearAll()">Reset</button>
+    </div>
+</div>
+
+<div id="viewport">
+    <canvas id="canvas"></canvas>
+    <div class="overlay">ENGINE: 3D_VECTOR // P_COUNT: <span id="pCount">0</span><br>STATUS: PRODUCTION_READY</div>
+</div>
+
+<script>
+/** ENGINE **/
+const Noise = new function() {
+    this.p = new Uint8Array(512); const v = new Uint8Array(256);
+    this.init = () => { for(let i=0; i<256; i++) v[i]=i; for(let i=255; i>0; i--) { let j=Math.floor(Math.random()*(i+1)); [v[i],v[j]]=[v[j],v[i]]; } this.p.set(v); this.p.set(v, 256); };
+    this.get = (x,y) => { let X=Math.floor(x)&255, Y=Math.floor(y)&255; x-=Math.floor(x); y-=Math.floor(y); const f=t=>t*t*t*(t*(t*6-15)+10), a=this.p[this.p[X]+Y], b=this.p[this.p[X+1]+Y]; const g=(h,x,y)=>{h&=15; return ((h<8?x:y)*(h&1?-1:1)+(h<4?y:(h==12||h==14?x:0))*(h&2?-1:1));}; return (1-f(y))*((1-f(x))*g(a,x,y)+f(x)*g(b,x-1,y)) + f(y)*((1-f(x))*g(this.p[this.p[X]+Y+1],x,y-1)+f(x)*g(this.p[this.p[X+1]+Y+1],x-1,y-1)); };
+}; 
+
+function hToHsl(hex) {
+    if(hex.startsWith('hsl')) return parseHsl(hex);
+    let r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+    let max=Math.max(r,g,b), min=Math.min(r,g,b), h, s, l=(max+min)/2;
+    if(max==min) h=s=0; else {
+        let d=max-min; s=l>0.5?d/(2-max-min):d/(max+min);
+        switch(max){ case r:h=(g-b)/d+(g<b?6:0);break; case g:h=(b-r)/d+2;break; case b:h=(r-g)/d+4;break; } h/=6;
+    } return {h:h*360, s:s*100, l:l*100};
+}
+function parseHsl(str) { const p = str.match(/\d+/g).map(Number); return {h:p[0]||0, s:p[1]||0, l:p[2]||0}; }
+
+/** STATE **/
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+let particles = [], history = [], mode = 'spray', isDrawing = false, hubs = [], customSVG = null;
+let palette = ['#58a6ff', '#00ffaa', '#ffffff', '#aaaaaa', '#ff5500'];
+const cfg = { rotX:0, rotY:0, zoom:0, depth:1.0, scale:0.004, chaos:100, lineDist:60, lineColor:'#ffffff', activeShapes:['circleFill'], bg:'#000000', lw:{f:1.5, m:0.6, b:0.1}, clump: 50 };
+
+/** HIGH-RES SVG DRAWING **/
+function drawSVG(color, x, y, size) {
+    if(!customSVG) return;
+    // Direct drawing of image object is vector-crisp in modern browsers
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(size/50, size/50);
+    // Tinting logic for live SVG: use a temporary high-res mask
+    const off = document.createElement('canvas');
+    off.width = off.height = 100;
+    const oX = off.getContext('2d');
+    oX.drawImage(customSVG, 0, 0, 100, 100);
+    oX.globalCompositeOperation = 'source-in';
+    oX.fillStyle = color;
+    oX.fillRect(0,0,100,100);
+    ctx.drawImage(off, -50, -50);
+    ctx.restore();
+}
+
+function save() {
+    const snap = { p: particles.map(p => ({...p})), c: JSON.parse(JSON.stringify(cfg)), pal: [...palette], h: JSON.parse(JSON.stringify(hubs)) };
+    history.push(snap); if(history.length > 11) history.shift();
+    document.getElementById('uCount').innerText = Math.max(0, history.length - 1);
+}
+
+function undo() {
+    if(history.length < 2) return; history.pop();
+    const prev = history[history.length-1];
+    particles = prev.p.map(p => ({...p})); Object.assign(cfg, prev.c); palette = [...prev.pal]; hubs = [...prev.h];
+    syncUI(); render();
+}
+
+function syncUI() {
+    ['rotX','rotY','zoom','depth','lineDist','clump'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el) el.value = (id==='depth'?cfg.depth*100:cfg[id]);
+        let v = document.getElementById('v-'+id);
+        if(v) v.innerText = el.value + (id==='depth'?'%':id==='zoom'?'%':'');
+    });
+    bgP.style.background = cfg.bg; lnP.style.background = cfg.lineColor;
+    updatePaletteUI();
+    const maps = { circleFill:'s1', circleStroke:'s2', squareFill:'s3', squareStroke:'s4', svg:'sSVG' };
+    Object.values(maps).forEach(id => document.getElementById(id).classList.remove('active'));
+    cfg.activeShapes.forEach(v => { if(maps[v]) document.getElementById(maps[v]).classList.add('active'); });
+}
+
+['rotX','rotY','zoom','depth','lineDist','clump'].forEach(id => {
+    document.getElementById(id).oninput = (e) => {
+        let v = parseFloat(e.target.value);
+        if(id==='depth') cfg.depth = v/100; else cfg[id] = v;
+        document.getElementById('v-'+id).innerText = e.target.value + (id==='depth'?'%':id==='zoom'?'%':'');
+        render();
+    };
+    document.getElementById(id).onchange = save;
+});
+
+function updateBg(c) { cfg.bg = c; bgP.style.background = c; render(); }
+function updateLineColor(c) { cfg.lineColor = c; lnP.style.background = c; render(); }
+
+function toggleShape(s) { 
+    if(cfg.activeShapes.includes(s)) { if(cfg.activeShapes.length > 1) cfg.activeShapes = cfg.activeShapes.filter(x => x !== s); } 
+    else { cfg.activeShapes.push(s); } 
+    particles.forEach(p => { p.shape = cfg.activeShapes[Math.floor(Math.random() * cfg.activeShapes.length)]; });
+    syncUI(); render(); 
+}
+
+function loadSVG(v) { 
+    if(!v) return; let src = v; 
+    if(v.trim().startsWith('<svg')) src = URL.createObjectURL(new Blob([v], {type: 'image/svg+xml'}));
+    const img = new Image(); img.onload = () => { customSVG = img; render(); save(); }; img.src = src; 
+}
+
+function updatePaletteUI() {
+    const el = document.getElementById('palette'); el.innerHTML = '';
+    palette.forEach((c, i) => {
+        const div = document.createElement('div'); div.className = 'p-node'; div.style.background = c;
+        div.innerHTML = `<input type="color" value="${c}" oninput="palette[${i}]=this.value; this.parentElement.style.background=this.value; render()">
+                         <button class="del" onclick="palette.splice(${i},1); updatePaletteUI(); render()">X</button>`;
+        el.appendChild(div);
+    });
+}
+function addColor() { palette.push('#ffffff'); updatePaletteUI(); }
+function clearAll() { save(); particles=[]; hubs=[]; render(); }
+function setMode(m) { mode = m; document.querySelectorAll('.row-4 button').forEach(b=>b.classList.remove('active')); document.getElementById('mode'+m.charAt(0).toUpperCase()+m.slice(1)).classList.add('active'); }
+
+function updateStructure() {
+    save(); const spread = (105 - cfg.clump) * 2.8;
+    particles.forEach(p => { const h = hubs[p.hIdx] || hubs[0]; p.x = h.x + (Math.random()-0.5)*spread; p.y = h.y + (Math.random()-0.5)*spread; p.z = h.z + (Math.random()-0.5)*spread; });
+    render();
+}
+
+function generateReset() {
+    save(); particles = []; Noise.init(); hubs = []; cfg.depth = 1.0; syncUI();
+    hubs = Array.from({length: 6}, () => ({ x: (Math.random()-0.5)*700, y: (Math.random()-0.5)*700, z: (Math.random()-0.5)*700 }));
+    const spread = (105 - cfg.clump) * 2.8;
+    for(let i=0; i<1800; i++) {
+        const hi = Math.floor(Math.random()*6);
+        particles.push({ 
+            x: hubs[hi].x+(Math.random()-0.5)*spread, y: hubs[hi].y+(Math.random()-0.5)*spread, z: hubs[hi].z+(Math.random()-0.5)*spread, 
+            hIdx: hi, pIdx: Math.floor(Math.random()*100),
+            shape: cfg.activeShapes[Math.floor(Math.random() * cfg.activeShapes.length)]
+        });
+    }
+    render();
+}
+
+function renderTo(t, w, h, scl = 1) {
+    t.fillStyle = cfg.bg; t.fillRect(0,0,w,h); 
+    const rX = cfg.rotX * Math.PI/180, rY = cfg.rotY * Math.PI/180;
+    const cosX = Math.cos(rX), sinX = Math.sin(rX), cosY = Math.cos(rY), sinY = Math.sin(rY);
+    const lH = hToHsl(cfg.lineColor); const fExp = (1.1 - cfg.depth) * 8; 
+
+    const proj = particles.map(p => {
+        const n = Noise.get(p.x*cfg.scale, p.y*cfg.scale), ox = Math.cos(n*10)*cfg.chaos, oy = Math.sin(n*10)*cfg.chaos;
+        let tx = (p.x+ox)*cosY + (p.z)*sinY; let tz = -(p.x+ox)*sinY + (p.z)*cosY;
+        let ty = (p.y+oy)*cosX - tz*sinX; tz = (p.y+oy)*sinX + tz*cosX;
+        const wZ = tz + 800 + cfg.zoom, s = 700 / Math.max(1, wZ), nZ = Math.min(1, Math.max(0, (wZ - 200) / 1800));
+        return { x: tx*s + w/2, y: ty*s + h/2, z: wZ, s, pIdx: p.pIdx, normZ: nZ, shape: p.shape };
+    }).sort((a,b) => b.z - a.z);
+
+    if(document.getElementById('showLines').checked) {
+        for(let i=0; i<proj.length; i+=(proj.length>2000?2:1)) {
+            const p1 = proj[i];
+            for(let j=i+1; j<Math.min(i+35, proj.length); j++) {
+                const p2 = proj[j]; const d = Math.hypot(p1.x-p2.x, p1.y-p2.y); const lim = cfg.lineDist * p1.s * scl;
+                if(d < lim) {
+                    const avgZ = (p1.normZ + p2.normZ) / 2; const alpha = Math.pow(1 - avgZ, fExp);
+                    let weight = avgZ < 0.5 ? cfg.lw.f + (cfg.lw.m-cfg.lw.f)*avgZ*2 : cfg.lw.m + (cfg.lw.b-cfg.lw.m)*(avgZ-0.5)*2;
+                    t.lineWidth = weight * scl; t.strokeStyle = `hsla(${lH.h},${lH.s}%,${lH.l}%,${(1-d/lim)*alpha})`;
+                    t.beginPath(); t.moveTo(p1.x, p1.y); t.lineTo(p2.x, p2.y); t.stroke();
+                }
+            }
+        }
+    }
+    proj.forEach(p => {
+        const colorHsl = hToHsl(palette[p.pIdx % palette.length]);
+        const df = Math.pow(1 - p.normZ, fExp); 
+        const finalColor = `hsla(${colorHsl.h}, ${colorHsl.s*(1-p.normZ*(1-cfg.depth))}%, ${colorHsl.l*(1-p.normZ*(1-cfg.depth))}%, ${Math.max(0.01, df)})`;
+        t.fillStyle = t.strokeStyle = finalColor;
+        const r = (colorHsl.l>90?1.2:2.8) * p.s * scl;
+        
+        if(p.shape==='circleFill') { t.beginPath(); t.arc(p.x, p.y, r, 0, Math.PI*2); t.fill(); }
+        else if(p.shape==='circleStroke') { t.beginPath(); t.arc(p.x, p.y, r, 0, Math.PI*2); t.stroke(); }
+        else if(p.shape==='squareFill') { t.fillRect(p.x-r, p.y-r, r*2, r*2); }
+        else if(p.shape==='squareStroke') { t.strokeRect(p.x-r, p.y-r, r*2, r*2); }
+        else if(p.shape==='svg' && customSVG) { drawSVG(finalColor, p.x, p.y, r*8); }
+    });
+    document.getElementById('pCount').innerText = particles.length;
+}
+
+function render() { renderTo(ctx, canvas.width, canvas.height, 1); }
+function export4K() { const e = document.createElement('canvas'); e.width=3840; e.height=2160; renderTo(e.getContext('2d'), 3840, 2160, 3); const l = document.createElement('a'); l.download='composition.png'; l.href=e.toDataURL(); l.click(); }
+
+function handle(mx, my) {
+    const rx = (mx - 320) - (canvas.width/2), ry = my - (canvas.height/2);
+    if(mode==='spray') { for(let i=0; i<15; i++) particles.push({ x: rx/(700/800)+(Math.random()-0.5)*200, y: ry/(700/800)+(Math.random()-0.5)*200, z:(Math.random()-0.5)*1000, hIdx: 0, pIdx: Math.floor(Math.random()*palette.length), shape: cfg.activeShapes[Math.floor(Math.random() * cfg.activeShapes.length)] }); }
+    else if(mode==='erase') { particles=particles.filter(p => { const s = 700 / (800 + p.z + cfg.zoom); return Math.hypot(p.x*s + canvas.width/2 - (mx-320), p.y*s + canvas.height/2 - ry) > 80; }); }
+    else { const force = (mode==='vortex' ? 0.05 : -0.05); particles.forEach(p => { const dx = (rx/(700/800))-p.x, dy = (ry/(700/800))-p.y, dz = -p.z, d = Math.sqrt(dx*dx+dy*dy+dz*dz); if(d<500) { p.x+=dx*force*(1-d/500); p.y+=dy*force*(1-d/500); p.z+=dz*force*(1-d/500); } }); }
+    render();
+}
+
+canvas.addEventListener('mousedown', e => { isDrawing=true; handle(e.clientX, e.clientY); });
+canvas.addEventListener('mousemove', e => { if(isDrawing) handle(e.clientX, e.clientY); });
+window.addEventListener('mouseup', () => { if(isDrawing) { isDrawing=false; save(); } });
+window.onresize = () => { canvas.width=window.innerWidth-320; canvas.height=window.innerHeight; render(); };
+Noise.init(); canvas.width=window.innerWidth-320; canvas.height=window.innerHeight; syncUI(); generateReset();
+</script>
+</body>
+</html>
