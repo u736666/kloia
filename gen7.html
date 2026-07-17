@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SamuelYAN Studio - Full Screen Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
+        
+        #ui-panel {
+            position: absolute; top: 20px; left: 20px; width: 280px;
+            background: rgba(10, 10, 10, 0.95); color: #fff; padding: 20px;
+            border: 1px solid #333; z-index: 100; box-shadow: 15px 15px 30px rgba(0,0,0,0.8);
+            max-height: 90vh; overflow-y: auto;
+        }
+
+        h2 { margin: 0 0 10px 0; font-size: 14px; letter-spacing: 1px; color: #fff; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .row { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { font-size: 10px; text-transform: uppercase; margin-bottom: 4px; color: #666; }
+        
+        input[type=range] { width: 100%; cursor: pointer; accent-color: #fff; }
+        .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        input[type=color] { border: 1px solid #333; width: 100%; height: 25px; background: none; cursor: pointer; }
+        
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        button {
+            padding: 10px; border: 1px solid #444; background: transparent; color: #fff;
+            cursor: pointer; font-size: 10px; font-weight: bold; text-transform: uppercase;
+        }
+        button:hover { background: #fff; color: #000; border-color: #fff; }
+        .active-btn { background: #fff; color: #000; }
+
+        #status { font-size: 9px; margin-top: 15px; color: #555; text-align: left; line-height: 1.4; }
+        #container { width: 100vw; height: 100vh; cursor: grab; }
+        #container:active { cursor: grabbing; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <h2>Köseoğlu Gen v2</h2>
+        
+        <div class="row">
+            <label>Noise Detail</label>
+            <input type="range" id="noiseScale" min="0.1" max="5.0" step="0.01" value="1.25">
+        </div>
+
+        <div class="row">
+            <label>Vortex Size</label>
+            <input type="range" id="innerRadius" min="0.01" max="1.0" step="0.01" value="0.2">
+        </div>
+
+        <div class="row">
+            <label>Anim Speed</label>
+            <input type="range" id="speed" min="0.0" max="3.0" step="0.01" value="0.75">
+        </div>
+
+        <div class="row">
+            <label>Ink Colors</label>
+            <div class="color-grid">
+                <input type="color" id="col1" value="#fc42fc">
+                <input type="color" id="col2" value="#4c33e8">
+            </div>
+        </div>
+
+        <div class="row">
+            <label>Canvas & Glow</label>
+            <div class="color-grid">
+                <input type="color" id="bgCol" value="#050508">
+                <input type="color" id="col3" value="#0f1499">
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button onclick="undoState()">Undo (Z)</button>
+            <button onclick="resetAll()">Reset (R)</button>
+        </div>
+
+        <div class="btn-group" style="grid-template-columns: 1fr;">
+            <button class="active-btn" onclick="exportPNG()">Save 4K PNG</button>
+        </div>
+
+        <div id="status">
+            DRAG to move shape<br>
+            SCROLL to zoom<br>
+            System: <span id="sys-msg" style="color:#fff">Ready</span>
+        </div>
+    </div>
+
+    <div id="container"></div>
+
+<script>
+// Shader Sources (SamuelYAN + Simplex)
+const vert = `attribute vec3 aPosition; void main() { gl_Position = vec4(aPosition * 2.0 - 1.0, 1.0); }`;
+const frag = `
+    precision highp float;
+    uniform vec2 u_resolution;
+    uniform float u_time;
+    uniform float u_noiseScale;
+    uniform float u_innerRadius;
+    uniform float u_zoom;
+    uniform vec2 u_offset;
+    uniform vec3 u_color1, u_color2, u_color3, u_bgColor;
+
+    vec3 hash33(vec3 p3){
+        p3 = fract(p3 * vec3(.1031,.11369,.13787));
+        p3 += dot(p3, p3.yxz+19.19);
+        return -1.0 + 2.0 * fract(vec3(p3.x+p3.y, p3.x+p3.z, p3.y+p3.z) * p3.zyx);
+    }
+
+    float snoise3(vec3 p){
+        const float K1 = 0.333333333, K2 = 0.166666667;
+        vec3 i = floor(p + (p.x + p.y + p.z) * K1);
+        vec3 d0 = p - (i - (i.x + i.y + i.z) * K2);
+        vec3 e = step(vec3(0.0), d0 - d0.yzx);
+        vec3 i1 = e * (1.0 - e.zxy), i2 = 1.0 - e.zxy * (1.0 - e);
+        vec3 d1 = d0 - (i1 - K2), d2 = d0 - (i2 - K1), d3 = d0 - 0.5;
+        vec4 h = max(0.6 - vec4(dot(d0,d0), dot(d1,d1), dot(d2,d2), dot(d3,d3)), 0.0);
+        vec4 n = h*h*h*h * vec4(dot(d0, hash33(i)), dot(d1, hash33(i+i1)), dot(d2, hash33(i+i2)), dot(d3, hash33(i+1.0)));
+        return dot(vec4(31.316), n);
+    }
+
+    void main(){
+        vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+        uv -= u_offset; // Translation
+        uv /= u_zoom;   // Zoom
+
+        float time = u_time, ang = atan(uv.y, uv.x), len = length(uv);
+        float n0 = snoise3(vec3(uv * u_noiseScale, time * 0.75)) * 0.5 + 0.5;
+        float r0 = mix(mix(u_innerRadius, 2.0, 0.1), mix(u_innerRadius, 1.0, 0.5), n0);
+        float d0 = distance(uv, r0 / max(len,0.001) * uv);
+
+        float v0 = (1.25 / (1.0 + d0 * 2.0)) * smoothstep(r0 * 1.05, r0, len);
+        float d = distance(uv, vec2(cos(time * -2.0), sin(time * -2.0)) * r0);
+        float v1 = (1.5 / (1.0 + d * d * 5.0)) * (1.0 / (1.0 + d0 * 100.0));
+
+        vec3 col = mix(u_color1, u_color2, cos(ang + time * 3.0) * 0.5 + 0.5);
+        col = mix(u_color3, col, v0);
+        col = (col + v1) * smoothstep(1.0, mix(u_innerRadius, 1.0, n0 * 0.5), len) * smoothstep(u_innerRadius, mix(u_innerRadius, 1.0, 0.5), len);
+        
+        float alpha = clamp(min(max(max(col.r, col.g), col.b), 1.0), 0.0, 1.0);
+        gl_FragColor = vec4(mix(u_bgColor, col, alpha), 1.0);
+    }
+`;
+
+let theShader, canvas, isExporting = false;
+let zoom = 1.0, offsetX = 0, offsetY = 0;
+let dragStartX, dragStartY, isDragging = false;
+let history = [];
+
+const defaults = {
+    noiseScale: 1.25, innerRadius: 0.2, speed: 0.75,
+    col1: "#fc42fc", col2: "#4c33e8", col3: "#0f1499", bgCol: "#050508",
+    zoom: 1.0, offX: 0, offY: 0
+};
+
+function setup() {
+    // FULL SCREEN CANVAS
+    canvas = createCanvas(windowWidth, windowHeight, WEBGL);
+    canvas.parent('container');
+    theShader = createShader(vert, frag);
+    saveState();
+}
+
+function draw() {
+    if (isExporting) return;
+    shader(theShader);
+    
+    // Pass Transformations (passing negative offsetY corrects the inversion)
+    theShader.setUniform("u_resolution", [width, height]);
+    theShader.setUniform("u_time", (millis() / 1000.0) * parseFloat(document.getElementById('speed').value));
+    theShader.setUniform("u_noiseScale", parseFloat(document.getElementById('noiseScale').value));
+    theShader.setUniform("u_innerRadius", parseFloat(document.getElementById('innerRadius').value));
+    theShader.setUniform("u_zoom", zoom);
+    // Relative to height to keep scaling consistent regardless of screen size
+    theShader.setUniform("u_offset", [offsetX / height, -offsetY / height]);
+    
+    // Pass Colors
+    let getC = (i) => { let c = color(document.getElementById(i).value); return [red(c)/255, green(c)/255, blue(c)/255]; };
+    theShader.setUniform("u_color1", getC('col1'));
+    theShader.setUniform("u_color2", getC('col2'));
+    theShader.setUniform("u_color3", getC('col3'));
+    theShader.setUniform("u_bgColor", getC('bgCol'));
+
+    rect(0, 0, width, height);
+}
+
+// --- INTERACTION LOGIC ---
+
+function mousePressed() {
+    if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+    if (mouseX < 320 && mouseY < 600) return; // Prevent drag when clicking UI
+    isDragging = true;
+    dragStartX = mouseX - offsetX;
+    dragStartY = mouseY - offsetY;
+}
+
+function mouseDragged() {
+    if (!isDragging) return;
+    offsetX = mouseX - dragStartX;
+    offsetY = mouseY - dragStartY;
+}
+
+function mouseReleased() {
+    if (isDragging) saveState();
+    isDragging = false;
+}
+
+function mouseWheel(event) {
+    if (mouseX < 0 || mouseX > width || mouseY < 0 || mouseY > height) return;
+    zoom -= event.delta * 0.001;
+    zoom = constrain(zoom, 0.1, 10.0);
+    // Debounce state saving for zoom
+    clearTimeout(window.zoomTimer);
+    window.zoomTimer = setTimeout(saveState, 500);
+    return false;
+}
+
+// --- STATE MANAGEMENT ---
+
+function saveState() {
+    let state = {
+        zoom: zoom, offX: offsetX, offY: offsetY,
+        nS: document.getElementById('noiseScale').value,
+        iR: document.getElementById('innerRadius').value
+    };
+    history.push(JSON.stringify(state));
+    if (history.length > 21) history.shift();
+}
+
+function undoState() {
+    if (history.length <= 1) return;
+    history.pop(); // Remove current
+    let prev = JSON.parse(history[history.length - 1]);
+    zoom = prev.zoom;
+    offsetX = prev.offX;
+    offsetY = prev.offY;
+    document.getElementById('noiseScale').value = prev.nS;
+    document.getElementById('innerRadius').value = prev.iR;
+}
+
+function resetAll() {
+    zoom = defaults.zoom;
+    offsetX = defaults.offX;
+    offsetY = defaults.offY;
+    Object.keys(defaults).forEach(key => {
+        let el = document.getElementById(key);
+        if (el) el.value = defaults[key];
+    });
+    saveState();
+}
+
+function exportPNG() {
+    isExporting = true;
+    document.getElementById('sys-msg').innerText = "Exporting 4K...";
+    
+    let prevW = width;
+    let prevH = height;
+    
+    // Resize main canvas to 4K (3840x2160)
+    resizeCanvas(3840, 2160);
+    
+    // Configure context for high-res save
+    shader(theShader);
+    theShader.setUniform("u_resolution", [3840, 2160]);
+    theShader.setUniform("u_time", (millis() / 1000.0) * parseFloat(document.getElementById('speed').value));
+    theShader.setUniform("u_noiseScale", parseFloat(document.getElementById('noiseScale').value));
+    theShader.setUniform("u_innerRadius", parseFloat(document.getElementById('innerRadius').value));
+    theShader.setUniform("u_zoom", zoom);
+    // Crucial: offset must be normalized by original preview height to look the same
+    theShader.setUniform("u_offset", [offsetX / prevH, -offsetY / prevH]);
+    
+    let getC = (i) => { let c = color(document.getElementById(i).value); return [red(c)/255, green(c)/255, blue(c)/255]; };
+    theShader.setUniform("u_color1", getC('col1'));
+    theShader.setUniform("u_color2", getC('col2'));
+    theShader.setUniform("u_color3", getC('col3'));
+    theShader.setUniform("u_bgColor", getC('bgCol'));
+    
+    rect(0, 0, 3840, 2160);
+    
+    setTimeout(() => {
+        saveCanvas("SamuelYAN_Pro_4K", "png");
+        
+        // Restore screen layout
+        resizeCanvas(prevW, prevH);
+        isExporting = false;
+        document.getElementById('sys-msg').innerText = "Ready";
+    }, 200);
+}
+
+function windowResized() {
+    // ALWAYS FILL WINDOW
+    resizeCanvas(windowWidth, windowHeight);
+}
+</script>
+</body>
+</html>
